@@ -1,0 +1,99 @@
+name: Build Portable Windows App
+
+env:
+  NODE_VERSION: "22"
+  PNPM_VERSION: "10.26.2"
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "Website URL"
+        required: true
+      name:
+        description: "App name (used for the exe and folder)"
+        required: true
+      title:
+        description: "Window title (optional)"
+        required: false
+      icon:
+        description: "Icon URL or local path (optional)"
+        required: false
+      width:
+        description: "Window width"
+        required: false
+        default: "1200"
+      height:
+        description: "Window height"
+        required: false
+        default: "780"
+      new_window:
+        description: "Allow sites to open new windows (true/false)"
+        required: false
+        default: "false"
+
+# Builds an app on demand and writes nothing back to the repository.
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup environment
+        uses: ./.github/actions/setup-env
+        with:
+          mode: build
+
+      - name: Build CLI
+        run: pnpm run cli:build
+
+      - name: Build portable app
+        shell: pwsh
+        run: |
+          $args = @("${{ inputs.url }}", "--name", "${{ inputs.name }}", "--no-bundle", "--targets", "x64")
+
+          if ("${{ inputs.title }}" -ne "") {
+            $args += @("--title", "${{ inputs.title }}")
+          }
+
+          if ("${{ inputs.icon }}" -ne "") {
+            $args += @("--icon", "${{ inputs.icon }}")
+          }
+
+          $args += @("--width", "${{ inputs.width }}", "--height", "${{ inputs.height }}")
+
+          if ("${{ inputs.new_window }}" -eq "true") {
+            $args += "--new-window"
+          }
+
+          Write-Host "Running: node dist/cli.js $($args -join ' ')"
+          node dist/cli.js @args
+
+      - name: Assemble portable folder
+        shell: pwsh
+        run: |
+          $name = "${{ inputs.name }}"
+          $dest = "output/portable/$name"
+
+          if (-not (Test-Path "$name.exe")) {
+            Write-Error "Portable executable not found at $name.exe"
+            Get-ChildItem -Path . -Recurse -Filter "pake-*.exe" | Write-Host
+            exit 1
+          }
+
+          New-Item -ItemType Directory -Force -Path $dest | Out-Null
+          Copy-Item "$name.exe" "$dest/$name.exe" -Force
+          New-Item -ItemType Directory -Force -Path "$dest/Data" | Out-Null
+          Set-Content -Path "$dest/Data/.keep" -Value ""
+
+      - name: Upload portable artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ inputs.name }}-windows-portable
+          path: output/portable/${{ inputs.name }}
+          retention-days: 7

@@ -25,7 +25,7 @@ export const DEFAULT_PAKE_OPTIONS: PakeCliOptions = {
       case 'darwin':
         return 'dmg';
       case 'win32':
-        return 'msi';
+        return 'x64';
       default:
         return 'deb';
     }
@@ -43,7 +43,8 @@ export const DEFAULT_PAKE_OPTIONS: PakeCliOptions = {
   incognito: false,
   wasm: false,
   enableDragDrop: false,
-  bundle: true,
+  // Windows builds are always portable (raw executable, no MSI).
+  bundle: process.platform !== 'win32',
   keepBinary: false,
   multiInstance: false,
   multiWindow: false,

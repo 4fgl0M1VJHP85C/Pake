@@ -209,6 +209,9 @@ jobs:
             $args += "--new-window"
           }
 
+          $args += "--targets", "x64"
+          $args += "--no-bundle"
+
           Write-Host "Running: node dist/cli.js $($args -join ' ')"
           node dist/cli.js $args
 
@@ -258,12 +261,12 @@ jobs:
           retention-days: 3
           if-no-files-found: ignore
 
-      - name: Upload MSI (Windows)
+      - name: Upload Portable EXE (Windows)
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v6
         with:
-          name: ${{ inputs.name }}-Windows
-          path: ${{ inputs.name }}.msi
+          name: ${{ inputs.name }}-Windows-portable
+          path: ${{ inputs.name }}.exe
           retention-days: 3
 
       - name: Rust cache store

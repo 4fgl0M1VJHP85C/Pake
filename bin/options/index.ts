@@ -96,9 +96,12 @@ export default async function handleOptions(
     appOptions.internalUrlRegex = safeDomainsToRegex(options.safeDomain);
   }
 
-  // --no-bundle is Linux-only; keep normal packaging on other platforms.
-  if (appOptions.bundle === false && platform !== 'linux') {
-    logger.warn('✼ --no-bundle is only supported on Linux; ignoring it.');
+  // --no-bundle (raw executable) is supported on Windows and Linux; macOS
+  // still requires a bundle.
+  if (appOptions.bundle === false && platform === 'darwin') {
+    logger.warn(
+      '✼ --no-bundle is only supported on Windows and Linux; ignoring it.',
+    );
     appOptions.bundle = true;
   }
 

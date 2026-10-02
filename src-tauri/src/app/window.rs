@@ -436,7 +436,7 @@ fn build_window(
         && window_config.url_type == "web"
         && !window_config.incognito
     {
-        match app.path().app_data_dir() {
+        match crate::util::get_state_dir(app) {
             Ok(directory) => match crate::util::read_last_url(&directory.join("last-url.txt")) {
                 Ok(url) => url,
                 Err(error) => {
@@ -878,7 +878,7 @@ pub fn save_last_url(app: &AppHandle) {
         return;
     };
     let result = (|| -> Result<(), Box<dyn std::error::Error>> {
-        let path = app.path().app_data_dir()?.join("last-url.txt");
+        let path = crate::util::get_state_dir(app)?.join("last-url.txt");
         crate::util::write_last_url(&path, &window.url()?)?;
         Ok(())
     })();

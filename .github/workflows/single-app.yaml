@@ -352,42 +352,20 @@ jobs:
           $args += "--height", "${{ inputs.height }}"
 
           $args += "--targets", "x64"
+          $args += "--no-bundle"
 
           node dist/cli.js $args
 
           New-Item -Path "output\windows" -ItemType Directory -Force
 
-          # The CLI copies the MSI to project root and removes it from bundle directory
-          # Check project root first, then fallback to bundle directories
-          $projectRootMsi = "${{ inputs.title }}.msi"
-          $legacyProjectRootMsi = "${{ inputs.name }}.msi"
-
-          if (Test-Path $projectRootMsi) {
-            Move-Item -Path $projectRootMsi -Destination "output\windows\${{inputs.title}}_x64.msi"
-          } elseif (Test-Path $legacyProjectRootMsi) {
-            Move-Item -Path $legacyProjectRootMsi -Destination "output\windows\${{inputs.title}}_x64.msi"
+          # Portable build: the CLI emits the raw executable at the project root.
+          $exe = "${{ inputs.title }}.exe"
+          if (Test-Path $exe) {
+            Move-Item -Path $exe -Destination "output\windows\${{inputs.title}}_x64.exe"
           } else {
-            # Check architecture-specific path (x64 builds)
-            $msiFiles = Get-ChildItem -Path "src-tauri\target\x86_64-pc-windows-msvc\release\bundle\msi\*.msi" -ErrorAction SilentlyContinue
-
-            # Fallback to generic path
-            if (-not $msiFiles) {
-              $msiFiles = Get-ChildItem -Path "src-tauri\target\release\bundle\msi\*.msi" -ErrorAction SilentlyContinue
-            }
-
-            if ($msiFiles) {
-              Move-Item -Path $msiFiles[0].FullName -Destination "output\windows\${{inputs.title}}_x64.msi"
-            } else {
-              Write-Error "No MSI files found in expected locations"
-              Write-Host "Searched paths:"
-              Write-Host "  - $projectRootMsi (project root)"
-              Write-Host "  - $legacyProjectRootMsi (project root)"
-              Write-Host "  - src-tauri\target\x86_64-pc-windows-msvc\release\bundle\msi\"
-              Write-Host "  - src-tauri\target\release\bundle\msi\"
-              Write-Host "`nAll MSI files in target directory:"
-              Get-ChildItem -Path "src-tauri\target\" -Recurse -Name "*.msi" | Write-Host
-              exit 1
-            }
+            Write-Error "Portable executable not found: $exe"
+            Get-ChildItem -Path . -Recurse -Filter "pake-*.exe" | Write-Host
+            exit 1
           }
 
           git checkout -- src-tauri/Cargo.lock
@@ -426,5 +404,5 @@ jobs:
           allowUpdates: true
           omitBody: true
           omitName: true
-          artifacts: "output/windows/*.msi"
+          artifacts: "output/windows/*.exe"
           token: ${{ secrets.GITHUB_TOKEN }}

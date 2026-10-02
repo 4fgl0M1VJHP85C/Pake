@@ -24,7 +24,86 @@ pub fn get_pake_config() -> (PakeConfig, Config) {
     (pake_config, tauri_config)
 }
 
+/// Directory containing the running executable.
+#[cfg(target_os = "windows")]
+pub fn portable_app_dir() -> Option<PathBuf> {
+    std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(Path::to_path_buf))
+}
+
+/// Portable WebView2 user-data directory (`<exe dir>/Data`) on Windows.
+#[cfg(target_os = "windows")]
+pub fn windows_data_dir() -> Option<PathBuf> {
+    portable_app_dir().map(|dir| dir.join("Data"))
+}
+
+/// Point WebView2 at the fixed-version runtime shipped next to the app
+/// (`<exe dir>/../MicrosoftWebView2`) and make sure `Data` exists. Falls back
+/// to the system WebView2 when the portable runtime is not present.
+#[cfg(target_os = "windows")]
+pub fn setup_portable_webview2() {
+    let Some(app_dir) = portable_app_dir() else {
+        return;
+    };
+
+    if let Some(parent) = app_dir.parent() {
+        let runtime = parent.join("MicrosoftWebView2");
+        if runtime.join("msedgewebview2.exe").exists() {
+            std::env::set_var("WEBVIEW2_BROWSER_EXECUTABLE_FOLDER", &runtime);
+        }
+    }
+
+    if let Some(data) = windows_data_dir() {
+        let _ = std::fs::create_dir_all(data);
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn setup_portable_webview2() {}
+
+/// Directory for small app-state files (`last-url.txt`, window state).
+///
+/// On Windows this lives next to the executable so the app stays portable; on
+/// other platforms it keeps using Tauri's per-user app data directory.
+pub fn get_state_dir(app: &AppHandle) -> std::io::Result<PathBuf> {
+    #[cfg(target_os = "windows")]
+    {
+        let _ = app;
+        let dir = windows_data_dir().ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "Failed to resolve the executable directory for portable state",
+            )
+        })?;
+        std::fs::create_dir_all(&dir)?;
+        Ok(dir)
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        app.path().app_data_dir().map_err(|err| {
+            std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("Failed to resolve app data dir: {err}"),
+            )
+        })
+    }
+}
+
 pub fn get_data_dir(app: &AppHandle, package_name: String) -> std::io::Result<PathBuf> {
+    #[cfg(target_os = "windows")]
+    let data_dir = {
+        let _ = (app, package_name);
+        windows_data_dir().ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "Failed to resolve the executable directory for portable data",
+            )
+        })?
+    };
+
+    #[cfg(not(target_os = "windows"))]
     let data_dir = app
         .path()
         .config_dir()

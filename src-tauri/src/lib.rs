@@ -282,6 +282,9 @@ fn apply_linux_webkit_runtime_flags() {
 }
 
 pub fn run_app() {
+    #[cfg(target_os = "windows")]
+    util::setup_portable_webview2();
+
     #[cfg(target_os = "linux")]
     {
         apply_linux_gdk_backend();
@@ -303,16 +306,27 @@ pub fn run_app() {
     let _enable_find = pake_config.windows[0].enable_find;
     let startup_window_revealed = Arc::new(AtomicBool::new(false));
 
-    let window_state_plugin = WindowStatePlugin::default()
-        .with_state_flags(if init_fullscreen {
-            StateFlags::FULLSCREEN
-        } else {
-            // Prevent flickering on the first open.
-            // Exclude FULLSCREEN so a prior --fullscreen build's persisted state
-            // doesn't force fullscreen on a rebuild without --fullscreen.
-            StateFlags::all() & !StateFlags::VISIBLE & !StateFlags::FULLSCREEN
-        })
-        .build();
+    let window_state_builder = WindowStatePlugin::default().with_state_flags(if init_fullscreen {
+        StateFlags::FULLSCREEN
+    } else {
+        // Prevent flickering on the first open.
+        // Exclude FULLSCREEN so a prior --fullscreen build's persisted state
+        // doesn't force fullscreen on a rebuild without --fullscreen.
+        StateFlags::all() & !StateFlags::VISIBLE & !StateFlags::FULLSCREEN
+    });
+
+    // Keep window state next to the executable on Windows so the app is portable.
+    #[cfg(target_os = "windows")]
+    let window_state_builder = match util::windows_data_dir() {
+        Some(dir) => {
+            let _ = std::fs::create_dir_all(&dir);
+            window_state_builder
+                .with_filename(dir.join("window-state.json").to_string_lossy().to_string())
+        }
+        None => window_state_builder,
+    };
+
+    let window_state_plugin = window_state_builder.build();
 
     #[allow(deprecated)]
     let mut app_builder = tauri_app

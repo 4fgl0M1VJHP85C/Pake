@@ -57,7 +57,18 @@ export default class WinBuilder extends BaseBuilder {
       );
     }
 
-    return this.buildBaseCommand(packageManager, configPath, buildTarget);
+    const command = this.buildBaseCommand(
+      packageManager,
+      configPath,
+      buildTarget,
+    );
+
+    // Portable build: skip the MSI installer and emit the raw executable.
+    if (this.options.bundle === false) {
+      command.args.push('--no-bundle');
+    }
+
+    return command;
   }
 
   protected getBasePath(): string {
